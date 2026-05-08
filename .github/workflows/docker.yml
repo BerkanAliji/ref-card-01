@@ -1,0 +1,59 @@
+name: Java CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-test-deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Make mvnw executable
+        run: chmod +x mvnw
+
+      - name: Run Tests
+        run: ./mvnw test
+
+      - name: Build Jar
+        run: ./mvnw clean package -DskipTests
+
+      - name: Login DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Docker Image
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/ref-card-01:latest .
+          docker tag ${{ secrets.DOCKERHUB_USERNAME }}/ref-card-01:latest ghcr.io/${{ github.repository_owner }}/ref-card-01:latest
+
+      - name: Push DockerHub
+        run: |
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/ref-card-01:latest
+
+      - name: Push GHCR
+        run: |
+          docker push ghcr.io/${{ github.repository_owner }}/ref-card-01:latest
